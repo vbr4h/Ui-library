@@ -1,0 +1,476 @@
+local UI = {}
+
+UI.Windows = {}
+UI.Theme = {
+    Background = Color3.fromRGB(18, 18, 24),
+    Surface = Color3.fromRGB(26, 26, 34),
+    Elevated = Color3.fromRGB(34, 34, 44),
+    Border = Color3.fromRGB(55, 55, 70),
+    Accent = Color3.fromRGB(108, 92, 231),
+    AccentHover = Color3.fromRGB(130, 116, 245),
+    Text = Color3.fromRGB(230, 230, 240),
+    TextMuted = Color3.fromRGB(140, 140, 158),
+    Danger = Color3.fromRGB(220, 60, 80),
+    Success = Color3.fromRGB(50, 190, 120),
+}
+
+local function Tween(obj, props, duration)
+    local ti = TweenInfo.new(duration or 0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    game:GetService("TweenService"):Create(obj, ti, props):Play()
+end
+
+local function MakeDraggable(frame, handle)
+    local dragging, dragStart, startPos
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+        end
+    end)
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+    game:GetService("UserInputService").InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+end
+
+local function Base(className, props)
+    local obj = Instance.new(className)
+    for k, v in pairs(props or {}) do
+        obj[k] = v
+    end
+    return obj
+end
+
+function UI.Window(title, size)
+    size = size or UDim2.new(0, 320, 0, 420)
+    local T = UI.Theme
+
+    local screenGui = Base("ScreenGui", {
+        Name = "UILib_" .. title,
+        ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    })
+
+    local frame = Base("Frame", {
+        Size = size,
+        Position = UDim2.new(0.5, -size.X.Offset / 2, 0.5, -size.Y.Offset / 2),
+        BackgroundColor3 = T.Background,
+        BorderSizePixel = 0,
+        Parent = screenGui,
+    })
+    Base("UICorner", { CornerRadius = UDim.new(0, 10), Parent = frame })
+    Base("UIStroke", { Color = T.Border, Thickness = 1, Parent = frame })
+
+    local titleBar = Base("Frame", {
+        Size = UDim2.new(1, 0, 0, 38),
+        BackgroundColor3 = T.Surface,
+        BorderSizePixel = 0,
+        Parent = frame,
+    })
+    Base("UICorner", { CornerRadius = UDim.new(0, 10), Parent = titleBar })
+
+    local titleFix = Base("Frame", {
+        Size = UDim2.new(1, 0, 0.5, 0),
+        Position = UDim2.new(0, 0, 0.5, 0),
+        BackgroundColor3 = T.Surface,
+        BorderSizePixel = 0,
+        Parent = titleBar,
+    })
+
+    Base("TextLabel", {
+        Size = UDim2.new(1, -40, 1, 0),
+        Position = UDim2.new(0, 14, 0, 0),
+        BackgroundTransparency = 1,
+        Text = title,
+        TextColor3 = T.Text,
+        TextSize = 14,
+        Font = Enum.Font.GothamSemibold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = titleBar,
+    })
+
+    local closeBtn = Base("TextButton", {
+        Size = UDim2.new(0, 24, 0, 24),
+        Position = UDim2.new(1, -32, 0.5, -12),
+        BackgroundColor3 = T.Danger,
+        Text = "",
+        BorderSizePixel = 0,
+        Parent = titleBar,
+    })
+    Base("UICorner", { CornerRadius = UDim.new(1, 0), Parent = closeBtn })
+    closeBtn.MouseEnter:Connect(function() Tween(closeBtn, { BackgroundTransparency = 0.3 }) end)
+    closeBtn.MouseLeave:Connect(function() Tween(closeBtn, { BackgroundTransparency = 0 }) end)
+    closeBtn.MouseButton1Click:Connect(function() screenGui:Destroy() end)
+
+    local scroll = Base("ScrollingFrame", {
+        Size = UDim2.new(1, 0, 1, -46),
+        Position = UDim2.new(0, 0, 0, 46),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 3,
+        ScrollBarImageColor3 = T.Accent,
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        Parent = frame,
+    })
+
+    local layout = Base("UIListLayout", {
+        Padding = UDim.new(0, 6),
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Parent = scroll,
+    })
+    Base("UIPadding", {
+        PaddingTop = UDim.new(0, 10),
+        PaddingBottom = UDim.new(0, 10),
+        PaddingLeft = UDim.new(0, 12),
+        PaddingRight = UDim.new(0, 12),
+        Parent = scroll,
+    })
+
+    MakeDraggable(frame, titleBar)
+
+    local target = game:GetService("CoreGui")
+    pcall(function() screenGui.Parent = target end)
+    if not screenGui.Parent then
+        screenGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    end
+
+    local win = { _scroll = scroll, _frame = frame, _layout = layout }
+    table.insert(UI.Windows, win)
+
+    function win:Section(text)
+        local T = UI.Theme
+        local container = Base("Frame", {
+            Size = UDim2.new(1, 0, 0, 26),
+            BackgroundTransparency = 1,
+            Parent = scroll,
+        })
+        Base("TextLabel", {
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Text = text:upper(),
+            TextColor3 = T.Accent,
+            TextSize = 11,
+            Font = Enum.Font.GothamSemibold,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = container,
+        })
+        Base("Frame", {
+            Size = UDim2.new(1, 0, 0, 1),
+            Position = UDim2.new(0, 0, 1, -1),
+            BackgroundColor3 = T.Border,
+            BorderSizePixel = 0,
+            Parent = container,
+        })
+        return self
+    end
+
+    function win:Button(text, callback)
+        local T = UI.Theme
+        local btn = Base("TextButton", {
+            Size = UDim2.new(1, 0, 0, 36),
+            BackgroundColor3 = T.Elevated,
+            Text = text,
+            TextColor3 = T.Text,
+            TextSize = 13,
+            Font = Enum.Font.Gotham,
+            BorderSizePixel = 0,
+            Parent = scroll,
+        })
+        Base("UICorner", { CornerRadius = UDim.new(0, 7), Parent = btn })
+        Base("UIStroke", { Color = T.Border, Thickness = 1, Parent = btn })
+
+        btn.MouseEnter:Connect(function()
+            Tween(btn, { BackgroundColor3 = T.Accent })
+            Tween(btn, { TextColor3 = Color3.fromRGB(255, 255, 255) })
+        end)
+        btn.MouseLeave:Connect(function()
+            Tween(btn, { BackgroundColor3 = T.Elevated })
+            Tween(btn, { TextColor3 = T.Text })
+        end)
+        btn.MouseButton1Click:Connect(function()
+            Tween(btn, { BackgroundColor3 = T.AccentHover })
+            task.delay(0.1, function()
+                Tween(btn, { BackgroundColor3 = T.Elevated })
+            end)
+            if callback then pcall(callback) end
+        end)
+        return self
+    end
+
+    function win:Toggle(text, default, callback)
+        local T = UI.Theme
+        local state = default or false
+
+        local row = Base("Frame", {
+            Size = UDim2.new(1, 0, 0, 36),
+            BackgroundColor3 = T.Elevated,
+            BorderSizePixel = 0,
+            Parent = scroll,
+        })
+        Base("UICorner", { CornerRadius = UDim.new(0, 7), Parent = row })
+        Base("UIStroke", { Color = T.Border, Thickness = 1, Parent = row })
+
+        Base("TextLabel", {
+            Size = UDim2.new(1, -60, 1, 0),
+            Position = UDim2.new(0, 12, 0, 0),
+            BackgroundTransparency = 1,
+            Text = text,
+            TextColor3 = T.Text,
+            TextSize = 13,
+            Font = Enum.Font.Gotham,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = row,
+        })
+
+        local track = Base("Frame", {
+            Size = UDim2.new(0, 38, 0, 20),
+            Position = UDim2.new(1, -50, 0.5, -10),
+            BackgroundColor3 = state and T.Accent or T.Border,
+            BorderSizePixel = 0,
+            Parent = row,
+        })
+        Base("UICorner", { CornerRadius = UDim.new(1, 0), Parent = track })
+
+        local thumb = Base("Frame", {
+            Size = UDim2.new(0, 14, 0, 14),
+            Position = state and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7),
+            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+            BorderSizePixel = 0,
+            Parent = track,
+        })
+        Base("UICorner", { CornerRadius = UDim.new(1, 0), Parent = thumb })
+
+        local btn = Base("TextButton", {
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Text = "",
+            Parent = row,
+        })
+
+        btn.MouseButton1Click:Connect(function()
+            state = not state
+            Tween(track, { BackgroundColor3 = state and T.Accent or T.Border })
+            Tween(thumb, { Position = state and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7) })
+            if callback then pcall(callback, state) end
+        end)
+        return self
+    end
+
+    function win:Slider(text, min, max, default, callback)
+        local T = UI.Theme
+        min, max = min or 0, max or 100
+        local value = math.clamp(default or min, min, max)
+
+        local container = Base("Frame", {
+            Size = UDim2.new(1, 0, 0, 52),
+            BackgroundColor3 = T.Elevated,
+            BorderSizePixel = 0,
+            Parent = scroll,
+        })
+        Base("UICorner", { CornerRadius = UDim.new(0, 7), Parent = container })
+        Base("UIStroke", { Color = T.Border, Thickness = 1, Parent = container })
+
+        local label = Base("TextLabel", {
+            Size = UDim2.new(1, -16, 0, 22),
+            Position = UDim2.new(0, 12, 0, 6),
+            BackgroundTransparency = 1,
+            Text = text .. ": " .. value,
+            TextColor3 = T.Text,
+            TextSize = 13,
+            Font = Enum.Font.Gotham,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = container,
+        })
+
+        local track = Base("Frame", {
+            Size = UDim2.new(1, -24, 0, 4),
+            Position = UDim2.new(0, 12, 0, 36),
+            BackgroundColor3 = T.Border,
+            BorderSizePixel = 0,
+            Parent = container,
+        })
+        Base("UICorner", { CornerRadius = UDim.new(1, 0), Parent = track })
+
+        local fill = Base("Frame", {
+            Size = UDim2.new((value - min) / (max - min), 0, 1, 0),
+            BackgroundColor3 = T.Accent,
+            BorderSizePixel = 0,
+            Parent = track,
+        })
+        Base("UICorner", { CornerRadius = UDim.new(1, 0), Parent = fill })
+
+        local dragging = false
+        local inputBox = Base("TextButton", {
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Text = "",
+            Parent = track,
+        })
+
+        local function Update(input)
+            local rel = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+            value = math.round(min + (max - min) * rel)
+            label.Text = text .. ": " .. value
+            Tween(fill, { Size = UDim2.new(rel, 0, 1, 0) })
+            if callback then pcall(callback, value) end
+        end
+
+        inputBox.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                Update(input)
+            end
+        end)
+        game:GetService("UserInputService").InputChanged:Connect(function(input)
+            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                Update(input)
+            end
+        end)
+        game:GetService("UserInputService").InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+            end
+        end)
+        return self
+    end
+
+    function win:Input(placeholder, callback)
+        local T = UI.Theme
+        local box = Base("TextBox", {
+            Size = UDim2.new(1, 0, 0, 36),
+            BackgroundColor3 = T.Elevated,
+            PlaceholderText = placeholder or "Enter text...",
+            PlaceholderColor3 = T.TextMuted,
+            Text = "",
+            TextColor3 = T.Text,
+            TextSize = 13,
+            Font = Enum.Font.Gotham,
+            BorderSizePixel = 0,
+            ClearTextOnFocus = false,
+            Parent = scroll,
+        })
+        Base("UICorner", { CornerRadius = UDim.new(0, 7), Parent = box })
+        Base("UIStroke", { Color = T.Border, Thickness = 1, Name = "Stroke", Parent = box })
+        Base("UIPadding", {
+            PaddingLeft = UDim.new(0, 12),
+            PaddingRight = UDim.new(0, 12),
+            Parent = box,
+        })
+
+        box.Focused:Connect(function()
+            Tween(box:FindFirstChild("Stroke"), { Color = T.Accent })
+        end)
+        box.FocusLost:Connect(function(enter)
+            Tween(box:FindFirstChild("Stroke"), { Color = T.Border })
+            if enter and callback then pcall(callback, box.Text) end
+        end)
+        return self
+    end
+
+    function win:Dropdown(text, options, callback)
+        local T = UI.Theme
+        local open = false
+        local selected = options[1] or "Select"
+
+        local container = Base("Frame", {
+            Size = UDim2.new(1, 0, 0, 36),
+            BackgroundColor3 = T.Elevated,
+            ClipsDescendants = true,
+            BorderSizePixel = 0,
+            Parent = scroll,
+        })
+        Base("UICorner", { CornerRadius = UDim.new(0, 7), Parent = container })
+        Base("UIStroke", { Color = T.Border, Thickness = 1, Parent = container })
+
+        local header = Base("TextButton", {
+            Size = UDim2.new(1, 0, 0, 36),
+            BackgroundTransparency = 1,
+            Text = "",
+            Parent = container,
+        })
+
+        Base("TextLabel", {
+            Size = UDim2.new(1, -36, 1, 0),
+            Position = UDim2.new(0, 12, 0, 0),
+            BackgroundTransparency = 1,
+            Text = text .. ": " .. selected,
+            TextColor3 = T.Text,
+            TextSize = 13,
+            Font = Enum.Font.Gotham,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Name = "Label",
+            Parent = header,
+        })
+
+        local arrow = Base("TextLabel", {
+            Size = UDim2.new(0, 24, 0, 24),
+            Position = UDim2.new(1, -30, 0.5, -12),
+            BackgroundTransparency = 1,
+            Text = "▾",
+            TextColor3 = T.TextMuted,
+            TextSize = 14,
+            Font = Enum.Font.Gotham,
+            Parent = header,
+        })
+
+        local optionLayout = Base("UIListLayout", {
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Parent = container,
+        })
+
+        local optionPad = Base("UIPadding", {
+            PaddingTop = UDim.new(0, 36),
+            Parent = container,
+        })
+
+        for _, opt in ipairs(options) do
+            local ob = Base("TextButton", {
+                Size = UDim2.new(1, 0, 0, 32),
+                BackgroundColor3 = T.Surface,
+                Text = opt,
+                TextColor3 = T.TextMuted,
+                TextSize = 13,
+                Font = Enum.Font.Gotham,
+                BorderSizePixel = 0,
+                Parent = container,
+            })
+            ob.MouseEnter:Connect(function() Tween(ob, { TextColor3 = T.Text }) end)
+            ob.MouseLeave:Connect(function() Tween(ob, { TextColor3 = T.TextMuted }) end)
+            ob.MouseButton1Click:Connect(function()
+                selected = opt
+                header:FindFirstChild("Label").Text = text .. ": " .. opt
+                open = false
+                Tween(container, { Size = UDim2.new(1, 0, 0, 36) })
+                if callback then pcall(callback, opt) end
+            end)
+        end
+
+        header.MouseButton1Click:Connect(function()
+            open = not open
+            local totalH = 36 + (#options * 32)
+            Tween(container, { Size = UDim2.new(1, 0, 0, open and totalH or 36) })
+            Tween(arrow, { Rotation = open and 180 or 0 })
+        end)
+
+        return self
+    end
+
+    return win
+end
+
+return UI
