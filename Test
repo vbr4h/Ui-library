@@ -1,98 +1,234 @@
 local UI = {}
 UI.__index = UI
 
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local function corner(parent, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius or 8)
+    c.Parent = parent
+    return c
+end
+
+local function stroke(parent, color, transparency)
+    local s = Instance.new("UIStroke")
+    s.Color = color or Color3.fromRGB(45, 45, 55)
+    s.Transparency = transparency or 0
+    s.Thickness = 1
+    s.Parent = parent
+    return s
+end
+
 function UI:CreateWindow(title)
-    local player = game:GetService("Players").LocalPlayer
+    local player = Players.LocalPlayer
+
     local gui = Instance.new("ScreenGui")
     gui.Name = "UILibrary"
     gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     gui.Parent = player:WaitForChild("PlayerGui")
 
+    local shadow = Instance.new("Frame")
+    shadow.Size = UDim2.fromOffset(570, 390)
+    shadow.Position = UDim2.fromScale(0.5, 0.5)
+    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    shadow.BackgroundColor3 = Color3.fromRGB(5, 5, 7)
+    shadow.BackgroundTransparency = 0.35
+    shadow.BorderSizePixel = 0
+    shadow.Parent = gui
+    corner(shadow, 14)
+
     local main = Instance.new("Frame")
-    main.Size = UDim2.fromOffset(500, 320)
+    main.Size = UDim2.fromOffset(560, 380)
     main.Position = UDim2.fromScale(0.5, 0.5)
     main.AnchorPoint = Vector2.new(0.5, 0.5)
-    main.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    main.BackgroundColor3 = Color3.fromRGB(14, 14, 18)
     main.BorderSizePixel = 0
     main.Parent = gui
+    corner(main, 13)
+    stroke(main, Color3.fromRGB(40, 40, 48))
 
-    local corner = Instance.new("UICorner", main)
-    corner.CornerRadius = UDim.new(0, 10)
+    local top = Instance.new("Frame")
+    top.Size = UDim2.new(1, 0, 0, 58)
+    top.BackgroundColor3 = Color3.fromRGB(17, 17, 22)
+    top.BorderSizePixel = 0
+    top.Parent = main
+    corner(top, 13)
 
     local titleLabel = Instance.new("TextLabel")
-    titleLabel.Size = UDim2.new(1, -20, 0, 45)
-    titleLabel.Position = UDim2.fromOffset(15, 0)
+    titleLabel.Size = UDim2.new(1, -30, 1, 0)
+    titleLabel.Position = UDim2.fromOffset(18, 0)
     titleLabel.BackgroundTransparency = 1
     titleLabel.Text = title or "UI Library"
-    titleLabel.TextColor3 = Color3.new(1, 1, 1)
-    titleLabel.TextSize = 18
+    titleLabel.TextColor3 = Color3.fromRGB(245, 245, 248)
+    titleLabel.TextSize = 17
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    titleLabel.Parent = main
+    titleLabel.Parent = top
 
-    local tabs = Instance.new("Frame")
-    tabs.Size = UDim2.fromOffset(120, 260)
-    tabs.Position = UDim2.fromOffset(10, 50)
-    tabs.BackgroundColor3 = Color3.fromRGB(26, 26, 32)
-    tabs.BorderSizePixel = 0
-    tabs.Parent = main
+    local line = Instance.new("Frame")
+    line.Size = UDim2.new(1, -28, 0, 1)
+    line.Position = UDim2.fromOffset(14, 58)
+    line.BackgroundColor3 = Color3.fromRGB(38, 38, 46)
+    line.BorderSizePixel = 0
+    line.Parent = main
 
-    Instance.new("UICorner", tabs).CornerRadius = UDim.new(0, 8)
+    local sidebar = Instance.new("Frame")
+    sidebar.Size = UDim2.fromOffset(145, 300)
+    sidebar.Position = UDim2.fromOffset(12, 70)
+    sidebar.BackgroundColor3 = Color3.fromRGB(18, 18, 23)
+    sidebar.BorderSizePixel = 0
+    sidebar.Parent = main
+    corner(sidebar, 9)
+    stroke(sidebar, Color3.fromRGB(35, 35, 43))
 
-    local content = Instance.new("Frame")
-    content.Size = UDim2.new(1, -145, 1, -60)
-    content.Position = UDim2.fromOffset(140, 50)
-    content.BackgroundTransparency = 1
-    content.Parent = main
-
-    local tabList = Instance.new("UIListLayout", tabs)
+    local tabList = Instance.new("UIListLayout")
     tabList.Padding = UDim.new(0, 5)
     tabList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    tabList.SortOrder = Enum.SortOrder.LayoutOrder
+    tabList.Parent = sidebar
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop = UDim.new(0, 10)
+    padding.PaddingLeft = UDim.new(0, 7)
+    padding.PaddingRight = UDim.new(0, 7)
+    padding.Parent = sidebar
+
+    local content = Instance.new("Frame")
+    content.Size = UDim2.new(1, -172, 1, -82)
+    content.Position = UDim2.fromOffset(160, 70)
+    content.BackgroundColor3 = Color3.fromRGB(16, 16, 21)
+    content.BorderSizePixel = 0
+    content.Parent = main
+    corner(content, 9)
+    stroke(content, Color3.fromRGB(35, 35, 43))
 
     local window = {
         Main = main,
-        Tabs = tabs,
+        Sidebar = sidebar,
         Content = content,
-        Pages = {}
+        Pages = {},
+        Current = nil
     }
+
+    local dragging = false
+    local dragStart
+    local startPos
+
+    top.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = main.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (
+            input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch
+        ) then
+            local delta = input.Position - dragStart
+            local position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+
+            main.Position = position
+            shadow.Position = position
+        end
+    end)
 
     function window:Tab(name)
         local button = Instance.new("TextButton")
-        button.Size = UDim2.new(1, -10, 0, 38)
-        button.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+        button.Size = UDim2.new(1, 0, 0, 40)
+        button.BackgroundColor3 = Color3.fromRGB(24, 24, 30)
+        button.BackgroundTransparency = 1
         button.Text = name
-        button.TextColor3 = Color3.fromRGB(210, 210, 215)
-        button.TextSize = 14
+        button.TextColor3 = Color3.fromRGB(145, 145, 155)
+        button.TextSize = 13
         button.Font = Enum.Font.GothamMedium
         button.BorderSizePixel = 0
-        button.Parent = tabs
+        button.AutoButtonColor = false
+        button.Parent = sidebar
+        corner(button, 7)
 
-        Instance.new("UICorner", button).CornerRadius = UDim.new(0, 6)
+        local indicator = Instance.new("Frame")
+        indicator.Size = UDim2.fromOffset(3, 18)
+        indicator.Position = UDim2.new(0, 0, 0.5, -9)
+        indicator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        indicator.BorderSizePixel = 0
+        indicator.Visible = false
+        indicator.Parent = button
+        corner(indicator, 3)
 
         local page = Instance.new("ScrollingFrame")
-        page.Size = UDim2.fromScale(1, 1)
+        page.Size = UDim2.new(1, -20, 1, -20)
+        page.Position = UDim2.fromOffset(10, 10)
         page.BackgroundTransparency = 1
         page.BorderSizePixel = 0
-        page.ScrollBarThickness = 3
+        page.ScrollBarThickness = 2
+        page.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 80)
         page.Visible = #self.Pages == 0
+        page.CanvasSize = UDim2.new(0, 0, 0, 0)
         page.Parent = content
 
-        local layout = Instance.new("UIListLayout", page)
+        local layout = Instance.new("UIListLayout")
         layout.Padding = UDim.new(0, 8)
+        layout.SortOrder = Enum.SortOrder.LayoutOrder
+        layout.Parent = page
+
+        layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            page.CanvasSize = UDim2.new(
+                0,
+                0,
+                0,
+                layout.AbsoluteContentSize.Y + 10
+            )
+        end)
 
         local tab = {
             Button = button,
-            Page = page
+            Page = page,
+            Name = name
         }
 
         button.MouseButton1Click:Connect(function()
-            for _, other in pairs(self.Pages) do
+            for _, other in ipairs(self.Pages) do
                 other.Page.Visible = false
+                other.Button.BackgroundTransparency = 1
+                other.Button.TextColor3 = Color3.fromRGB(145, 145, 155)
+                other.Button:FindFirstChildOfClass("Frame").Visible = false
             end
+
             page.Visible = true
+            button.BackgroundTransparency = 0
+            button.BackgroundColor3 = Color3.fromRGB(28, 28, 35)
+            button.TextColor3 = Color3.fromRGB(245, 245, 248)
+            indicator.Visible = true
+            self.Current = tab
         end)
 
         table.insert(self.Pages, tab)
+
+        if #self.Pages == 1 then
+            button.BackgroundTransparency = 0
+            button.BackgroundColor3 = Color3.fromRGB(28, 28, 35)
+            button.TextColor3 = Color3.fromRGB(245, 245, 248)
+            indicator.Visible = true
+            self.Current = tab
+        end
+
         return tab
     end
 
